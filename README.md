@@ -22,7 +22,7 @@ cargo install mdbook-indexing
 and add it as a preprocessor in `book.toml`:
 
 ```toml
-[preprocessor.index]
+[preprocessor.indexing]
 ```
 
 ## Configuration
