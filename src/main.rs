@@ -85,9 +85,7 @@ fn handle_preprocessing(mut pre: Index) -> Result<(), Error> {
         );
     }
 
-    if let Some(toml::Value::Table(table)) =
-        ctx.config.get("preprocessor.indexing.see_instead")
-    {
+    if let Some(toml::Value::Table(table)) = ctx.config.get("preprocessor.indexing.see_instead") {
         for (key, val) in table {
             if let toml::Value::String(value) = val {
                 pre.see_instead(key, value);
@@ -95,9 +93,7 @@ fn handle_preprocessing(mut pre: Index) -> Result<(), Error> {
         }
     }
 
-    if let Some(toml::Value::Table(table)) =
-        ctx.config.get("preprocessor.indexing.nest_under")
-    {
+    if let Some(toml::Value::Table(table)) = ctx.config.get("preprocessor.indexing.nest_under") {
         for (key, val) in table {
             if let toml::Value::String(value) = val {
                 pre.nest_under(key, value);
@@ -190,8 +186,7 @@ impl Index {
                     anchor: anchor.clone(),
                 };
                 count += 1;
-                let content =
-                    caps.name("content").unwrap().as_str().to_string();
+                let content = caps.name("content").unwrap().as_str().to_string();
 
                 // Remove any links from the index name and canonicalize whitespace.
                 let mut index_entry = canonicalize(&content);
@@ -202,11 +197,7 @@ impl Index {
                 }
 
                 let itemlist = entries.entry(index_entry).or_default();
-                log::trace!(
-                    "Index entry '{}' found at {:?}",
-                    content,
-                    location,
-                );
+                log::trace!("Index entry '{}' found at {:?}", content, location,);
                 itemlist.push(location);
 
                 if visible {
@@ -223,17 +214,13 @@ impl Index {
         result += "# Index\n\n";
 
         // Sort entries alphabetically, ignoring case and special characters.
-        let mut keys: Vec<String> =
-            self.entries.borrow().keys().cloned().collect();
-        let see_also_keys: Vec<String> =
-            self.see_instead.keys().cloned().collect();
+        let mut keys: Vec<String> = self.entries.borrow().keys().cloned().collect();
+        let see_also_keys: Vec<String> = self.see_instead.keys().cloned().collect();
         keys.extend_from_slice(&see_also_keys);
         keys.sort_by_key(|s| {
             s.to_lowercase()
                 .chars()
-                .filter(|c| {
-                    !matches!(c, '*' | '{' | '}' | '`' | '[' | ']' | '@')
-                })
+                .filter(|c| !matches!(c, '*' | '{' | '}' | '`' | '[' | ']' | '@' | '\''))
                 .collect::<String>()
         });
 
@@ -247,8 +234,7 @@ impl Index {
                     // This is a sub-entry, so filter it out but also remember it in the per-main
                     // entry list.  Because the keys are already sorted, the per-main entry list
                     // will also be correctly sorted.
-                    let entries =
-                        sub_entries.entry(head.to_string()).or_default();
+                    let entries = sub_entries.entry(head.to_string()).or_default();
                     entries.push(s.clone());
                     false
                 } else {
@@ -287,12 +273,8 @@ impl Index {
             for (idx, loc) in locations.into_iter().enumerate() {
                 result += ", ";
                 if let Some(path) = &loc.path {
-                    result += &format!(
-                        "[{}]({}#{})",
-                        idx + 1,
-                        path.as_path().display(),
-                        loc.anchor
-                    );
+                    result +=
+                        &format!("[{}]({}#{})", idx + 1, path.as_path().display(), loc.anchor);
                 } else {
                     result += &format!("{}", idx + 1);
                 }
@@ -308,18 +290,11 @@ impl Preprocessor for Index {
         "index-preprocessor"
     }
 
-    fn run(
-        &self,
-        _ctx: &PreprocessorContext,
-        mut book: Book,
-    ) -> Result<Book, Error> {
+    fn run(&self, _ctx: &PreprocessorContext, mut book: Book) -> Result<Book, Error> {
         book.for_each_mut(|item| {
             if let mdbook::book::BookItem::Chapter(chap) = item {
                 if chap.name == "Index" {
-                    log::debug!(
-                        "Replacing chapter named '{}' with contents",
-                        chap.name
-                    );
+                    log::debug!("Replacing chapter named '{}' with contents", chap.name);
                     chap.content = self.generate();
                 } else {
                     log::info!("Indexing chapter '{}'", chap.name);
