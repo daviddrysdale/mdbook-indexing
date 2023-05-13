@@ -213,10 +213,16 @@ impl Index {
         let mut result = String::new();
         result += "# Index\n\n";
 
-        // Sort entries alphabetically, ignoring case and special characters.
+        // Sort entries alphabetically, ignoring case and special characters. Need
+        // to sort twice:
+        // - once by key as-is, so uppercase entries come before lowercase entries
+        // - then by lowercased key, so that the order ignores case.
+        // This ensures that entries that are the same except for capitalization
+        // (e.g. "Borrow" and "borrow") always sort in a consistent order.
         let mut keys: Vec<String> = self.entries.borrow().keys().cloned().collect();
         let see_also_keys: Vec<String> = self.see_instead.keys().cloned().collect();
         keys.extend_from_slice(&see_also_keys);
+        keys.sort();
         keys.sort_by_key(|s| {
             s.to_lowercase()
                 .chars()
