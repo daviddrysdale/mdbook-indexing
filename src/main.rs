@@ -157,16 +157,26 @@ impl Index {
         }
     }
 
-    fn process_chapter(&self, _renderer: &str, path: &Option<PathBuf>, content: &str) -> String {
+    fn process_chapter(&self, renderer: &str, path: &Option<PathBuf>, content: &str) -> String {
         let mut count = 1;
         let mut entries = self.entries.borrow_mut();
         INDEX_RE
             .replace_all(content, |caps: &regex::Captures| {
-                // Remove any links from the index name and canonicalize whitespace.
+                // Retrieve the content of the markup.  For a visible index entry, this is
+                // rendered in the output.
+                let viz = caps.name("viz").unwrap().as_str();
                 let content = caps.name("content").unwrap().as_str().to_string();
+                // Remove any links from the index name and canonicalize whitespace to get
+                // what should appear in the index.
                 let mut index_entry = canonicalize(&content);
+                log::debug!("found {viz} index entry '{content}' which maps to '{index_entry}'");
+                // Accumulate location against see_instead target if present
+                if let Some(dest) = self.see_instead.get(&index_entry) {
+                    index_entry = dest.clone();
+                    log::debug!("...or in fact '{index_entry}'");
+                }
 
-                let (visible, italic) = match caps.name("viz").unwrap().as_str() {
+                let (visible, italic) = match viz {
                     ITALIC => (true, true),
                     VISIBLE => (true, false),
                     HIDDEN => (false, false),
@@ -176,36 +186,60 @@ impl Index {
                     }
                 };
 
-                let anchor = format!("a{:03}", count);
-                let location = Location {
-                    path: path.clone(),
-                    anchor: anchor.clone(),
-                };
-                count += 1;
-
-                // Accumulate location against see_instead target if present
-                if let Some(dest) = self.see_instead.get(&index_entry) {
-                    index_entry = dest.clone();
-                }
-
-                let itemlist = entries.entry(index_entry).or_default();
-                log::trace!("Index entry '{content}' found at {location:?}");
-                itemlist.push(location);
-
-                if visible {
-                    if italic {
-                        format!("<a name=\"{anchor}\"></a>*{content}*")
+                if renderer == "asciidoc" {
+                    let nest_under = self.nest_under.get(&index_entry);
+                    let mut index_entry = text_to_asciidoc(&index_entry);
+                    log::debug!("asciidoc entry '{index_entry}'");
+                    if let Some(nest_under) = nest_under {
+                        let nest_under = text_to_asciidoc(nest_under);
+                        index_entry = format!("{nest_under},\"{index_entry}\"");
+                        log::debug!("nested entry '{index_entry}'");
+                    }
+                    // TODO: figure out how to avoid needing the space after the index marker
+                    if visible {
+                        if italic {
+                            format!("indexterm:[{index_entry}] *{content}*")
+                        } else {
+                            if content == index_entry {
+                                format!("indexterm2:[{index_entry}] ")
+                            } else {
+                                format!("indexterm:[{index_entry}] {content}")
+                            }
+                        }
                     } else {
-                        format!("<a name=\"{anchor}\"></a>{content}")
+                        format!("indexterm:[{index_entry}] ")
                     }
                 } else {
-                    format!("<a name=\"{anchor}\"></a>")
+                    let anchor = format!("a{:03}", count);
+                    let location = Location {
+                        path: path.clone(),
+                        anchor: anchor.clone(),
+                    };
+                    count += 1;
+
+                    let itemlist = entries.entry(index_entry).or_default();
+                    log::trace!("Index entry '{content}' found at {location:?}");
+                    itemlist.push(location);
+
+                    if visible {
+                        if italic {
+                            format!("<a name=\"{anchor}\"></a>*{content}*")
+                        } else {
+                            format!("<a name=\"{anchor}\"></a>{content}")
+                        }
+                    } else {
+                        format!("<a name=\"{anchor}\"></a>")
+                    }
                 }
             })
             .to_string()
     }
 
-    pub fn generate_index(&self, _renderer: &str) -> String {
+    pub fn generate_index(&self, renderer: &str) -> String {
+        if renderer == "asciidoc" {
+            // AsciiDoc takes care of generating the index catalog.
+            return "[index]\n== Index\n".to_string();
+        }
         let mut result = String::new();
         result += "# Index\n\n";
 
@@ -313,6 +347,17 @@ impl Preprocessor for Index {
     fn supports_renderer(&self, renderer: &str) -> bool {
         Self::supports_renderer(renderer)
     }
+}
+
+/// Convert index text into a form suitable for AsciiDoc.
+fn text_to_asciidoc(text: &str) -> String {
+    // Remove surrounding MarkDown formatting characters and substitute for special characters.
+    text.replace("`", "")
+        .trim_matches('*')
+        .trim_matches('_')
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+        .replace("&", "&amp;")
 }
 
 #[cfg(test)]
