@@ -85,9 +85,10 @@ fn main() {
 
 const VISIBLE: &str = "i";
 const HIDDEN: &str = "hi";
+const ITALIC: &str = "ii";
 lazy_static! {
     static ref INDEX_RE: Regex =
-        Regex::new(r"(?s)\{\{(?P<viz>h?i):\s*(?P<content>.*?)\}\}").unwrap();
+        Regex::new(r"(?s)\{\{(?P<viz>[hi]?i):\s*(?P<content>.*?)\}\}").unwrap();
     static ref MD_LINK_RE: Regex =
         Regex::new(r"(?s)\[(?P<text>[^]]+)\]\((?P<link>[^)]+)\)").unwrap();
     static ref WHITESPACE_RE: Regex = Regex::new(r"(?s)\s+").unwrap();
@@ -165,12 +166,13 @@ impl Index {
                 let content = caps.name("content").unwrap().as_str().to_string();
                 let mut index_entry = canonicalize(&content);
 
-                let visible = match caps.name("viz").unwrap().as_str() {
-                    VISIBLE => true,
-                    HIDDEN => false,
+                let (visible, italic) = match caps.name("viz").unwrap().as_str() {
+                    ITALIC => (true, true),
+                    VISIBLE => (true, false),
+                    HIDDEN => (false, false),
                     other => {
-                        eprintln!("Unexpected index type {}!", other);
-                        false
+                        eprintln!("Unexpected index type {other}!");
+                        (false, false)
                     }
                 };
 
@@ -187,13 +189,17 @@ impl Index {
                 }
 
                 let itemlist = entries.entry(index_entry).or_default();
-                log::trace!("Index entry '{}' found at {:?}", content, location,);
+                log::trace!("Index entry '{content}' found at {location:?}");
                 itemlist.push(location);
 
                 if visible {
-                    format!("<a name=\"{}\"></a>{}", anchor, content)
+                    if italic {
+                        format!("<a name=\"{anchor}\"></a>*{content}*")
+                    } else {
+                        format!("<a name=\"{anchor}\"></a>{content}")
+                    }
                 } else {
-                    format!("<a name=\"{}\"></a>", anchor)
+                    format!("<a name=\"{anchor}\"></a>")
                 }
             })
             .to_string()

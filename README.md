@@ -4,6 +4,8 @@ A preprocessor for [mdbook](https://github.com/rust-lang/mdBook) to support buil
 
 - Phrases enclosed in `{{i:<text>}}` are transmitted as-is to the rendered output, but also get an index entry added for
   them.
+- Phrases enclosed in `{{ii:<text>}}` are transmitted to the rendered output as italics, but also get an index entry
+  added for them.
 - Phrases enclosed in `{{hi:<text>}}` are removed from the rendered output, but get an index entry added for them
   anyway.
 - The contents of any chapter with name **Index** are replaced by the accumulated contents of the index.
