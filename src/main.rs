@@ -36,7 +36,7 @@
 //!     ```
 //!
 
-use clap::{App, Arg, ArgMatches, SubCommand};
+use clap::{App, Arg, SubCommand};
 use lazy_static::lazy_static;
 use mdbook::{
     book::Book,
@@ -46,6 +46,8 @@ use mdbook::{
 use regex::Regex;
 use std::path::PathBuf;
 use std::{cell::RefCell, collections::HashMap, io, process};
+
+const NAME: &str = "index-preprocessor";
 
 pub fn make_app() -> App<'static, 'static> {
     App::new("index-preprocessor")
@@ -60,62 +62,24 @@ pub fn make_app() -> App<'static, 'static> {
 fn main() {
     env_logger::init();
     let matches = make_app().get_matches();
-    let preprocessor = Index::new();
 
     if let Some(sub_args) = matches.subcommand_matches("supports") {
-        handle_supports(&preprocessor, sub_args);
-    } else if let Err(e) = handle_preprocessing(preprocessor) {
-        eprintln!("{}", e);
-        process::exit(1);
-    }
-}
+        let renderer = sub_args.value_of("renderer").expect("Required argument");
+        let supported = Index::supports_renderer(&renderer);
 
-fn handle_preprocessing(mut pre: Index) -> Result<(), Error> {
-    let (ctx, book) = CmdPreprocessor::parse_input(io::stdin())?;
-
-    if ctx.mdbook_version != mdbook::MDBOOK_VERSION {
-        // We should probably use the `semver` crate to check compatibility
-        // here...
-        eprintln!(
-            "Warning: The {} plugin was built against version {} of mdbook, \
-             but we're being called from version {}",
-            pre.name(),
-            mdbook::MDBOOK_VERSION,
-            ctx.mdbook_version
-        );
-    }
-
-    if let Some(toml::Value::Table(table)) = ctx.config.get("preprocessor.indexing.see_instead") {
-        for (key, val) in table {
-            if let toml::Value::String(value) = val {
-                pre.see_instead(key, value);
-            }
+        // Signal whether the renderer is supported by exiting with 1 or 0.
+        if supported {
+            process::exit(0);
+        } else {
+            process::exit(1);
         }
-    }
-
-    if let Some(toml::Value::Table(table)) = ctx.config.get("preprocessor.indexing.nest_under") {
-        for (key, val) in table {
-            if let toml::Value::String(value) = val {
-                pre.nest_under(key, value);
-            }
-        }
-    }
-
-    let processed_book = pre.run(&ctx, book)?;
-    serde_json::to_writer(io::stdout(), &processed_book)?;
-
-    Ok(())
-}
-
-fn handle_supports(pre: &dyn Preprocessor, sub_args: &ArgMatches) -> ! {
-    let renderer = sub_args.value_of("renderer").expect("Required argument");
-    let supported = pre.supports_renderer(&renderer);
-
-    // Signal whether the renderer is supported by exiting with 1 or 0.
-    if supported {
-        process::exit(0);
     } else {
-        process::exit(1);
+        let (ctx, book) = CmdPreprocessor::parse_input(io::stdin()).expect("Failed to parse input");
+        let preprocessor = Index::new(&ctx);
+        let processed_book = preprocessor
+            .run(&ctx, book)
+            .expect("Failed to process book");
+        serde_json::to_writer(io::stdout(), &processed_book).expect("Faild to emit processed book");
     }
 }
 
@@ -136,7 +100,6 @@ struct Location {
 }
 
 /// A pre-processor that tracks index entries.
-#[derive(Default)]
 pub struct Index {
     see_instead: HashMap<String, String>,
     nest_under: HashMap<String, String>,
@@ -153,25 +116,55 @@ fn canonicalize(s: &str) -> String {
 }
 
 impl Index {
-    pub fn new() -> Self {
-        Self::default()
+    pub fn new(ctx: &PreprocessorContext) -> Self {
+        if ctx.mdbook_version != mdbook::MDBOOK_VERSION {
+            // We should probably use the `semver` crate to check compatibility here...
+            eprintln!(
+                "Warning: The {} plugin was built against version {} of mdbook, \
+                 but we're being called from version {}",
+                NAME,
+                mdbook::MDBOOK_VERSION,
+                ctx.mdbook_version
+            );
+        }
+
+        let mut see_instead = HashMap::new();
+        if let Some(toml::Value::Table(table)) = ctx.config.get("preprocessor.indexing.see_instead")
+        {
+            for (key, val) in table {
+                if let toml::Value::String(value) = val {
+                    log::info!("Index entry '{}' will be 'see {}'", key, value);
+                    see_instead.insert(key.to_owned(), value.to_owned());
+                }
+            }
+        }
+
+        let mut nest_under = HashMap::new();
+        if let Some(toml::Value::Table(table)) = ctx.config.get("preprocessor.indexing.nest_under")
+        {
+            for (key, val) in table {
+                if let toml::Value::String(value) = val {
+                    log::info!("Index entry '{}' will be nested under '{}'", key, value);
+                    nest_under.insert(key.to_owned(), value.to_owned());
+                }
+            }
+        }
+        Self {
+            see_instead,
+            nest_under,
+            entries: RefCell::new(HashMap::new()),
+        }
     }
 
-    pub fn see_instead(&mut self, key: &str, value: &str) {
-        log::info!("Index entry '{}' will be 'see {}'", key, value);
-        self.see_instead.insert(key.to_owned(), value.to_owned());
-    }
-
-    pub fn nest_under(&mut self, key: &str, value: &str) {
-        log::info!("Index entry '{}' will be nested under '{}'", key, value);
-        self.nest_under.insert(key.to_owned(), value.to_owned());
-    }
-
-    fn scan(&self, path: &Option<PathBuf>, content: &str) -> String {
+    fn process_chapter(&self, _renderer: &str, path: &Option<PathBuf>, content: &str) -> String {
         let mut count = 1;
         let mut entries = self.entries.borrow_mut();
         INDEX_RE
             .replace_all(content, |caps: &regex::Captures| {
+                // Remove any links from the index name and canonicalize whitespace.
+                let content = caps.name("content").unwrap().as_str().to_string();
+                let mut index_entry = canonicalize(&content);
+
                 let visible = match caps.name("viz").unwrap().as_str() {
                     VISIBLE => true,
                     HIDDEN => false,
@@ -180,16 +173,13 @@ impl Index {
                         false
                     }
                 };
+
                 let anchor = format!("a{:03}", count);
                 let location = Location {
                     path: path.clone(),
                     anchor: anchor.clone(),
                 };
                 count += 1;
-                let content = caps.name("content").unwrap().as_str().to_string();
-
-                // Remove any links from the index name and canonicalize whitespace.
-                let mut index_entry = canonicalize(&content);
 
                 // Accumulate location against see_instead target if present
                 if let Some(dest) = self.see_instead.get(&index_entry) {
@@ -209,7 +199,7 @@ impl Index {
             .to_string()
     }
 
-    pub fn generate(&self) -> String {
+    pub fn generate_index(&self, _renderer: &str) -> String {
         let mut result = String::new();
         result += "# Index\n\n";
 
@@ -289,22 +279,25 @@ impl Index {
         result += "<br/>\n";
         result
     }
+    fn supports_renderer(renderer: &str) -> bool {
+        renderer != "not-supported"
+    }
 }
 
 impl Preprocessor for Index {
     fn name(&self) -> &str {
-        "index-preprocessor"
+        NAME
     }
 
-    fn run(&self, _ctx: &PreprocessorContext, mut book: Book) -> Result<Book, Error> {
+    fn run(&self, ctx: &PreprocessorContext, mut book: Book) -> Result<Book, Error> {
         book.for_each_mut(|item| {
             if let mdbook::book::BookItem::Chapter(chap) = item {
                 if chap.name == "Index" {
                     log::debug!("Replacing chapter named '{}' with contents", chap.name);
-                    chap.content = self.generate();
+                    chap.content = self.generate_index(&ctx.renderer);
                 } else {
                     log::info!("Indexing chapter '{}'", chap.name);
-                    chap.content = self.scan(&chap.path, &chap.content);
+                    chap.content = self.process_chapter(&ctx.renderer, &chap.path, &chap.content);
                 }
             }
         });
@@ -312,7 +305,7 @@ impl Preprocessor for Index {
     }
 
     fn supports_renderer(&self, renderer: &str) -> bool {
-        renderer != "not-supported"
+        Self::supports_renderer(renderer)
     }
 }
 
