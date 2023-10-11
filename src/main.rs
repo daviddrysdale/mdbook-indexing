@@ -200,11 +200,7 @@ impl Index {
                         if italic {
                             format!("indexterm:[{index_entry}] *{content}*")
                         } else {
-                            if content == index_entry {
-                                format!("indexterm2:[{index_entry}] ")
-                            } else {
-                                format!("indexterm:[{index_entry}] {content}")
-                            }
+                            format!("indexterm:[{index_entry}] {content}")
                         }
                     } else {
                         format!("indexterm:[{index_entry}] ")
