@@ -191,9 +191,12 @@ impl Index {
                     let mut index_entry = text_to_asciidoc(&index_entry);
                     log::debug!("asciidoc entry '{index_entry}'");
                     if let Some(nest_under) = nest_under {
-                        let nest_under = text_to_asciidoc(nest_under);
+                        let mut nest_under = text_to_asciidoc(nest_under);
+                        comma_quote(&mut nest_under);
                         index_entry = format!("{nest_under},\"{index_entry}\"");
                         log::debug!("nested entry '{index_entry}'");
+                    } else {
+                        comma_quote(&mut index_entry);
                     }
                     // TODO: figure out how to avoid needing the space after the index marker
                     if visible {
@@ -354,6 +357,16 @@ fn text_to_asciidoc(text: &str) -> String {
         .replace("<", "&lt;")
         .replace(">", "&gt;")
         .replace("&", "&amp;")
+}
+
+/// Add quotes round a string if it contains commas.
+fn comma_quote(text: &mut String) {
+    if text.contains(",") {
+        // An index entry with a comma needs double quotes around it so
+        // the comma doesn't induce a nested entry.
+        let quoted_text = format!("\"{text}\"");
+        *text = quoted_text;
+    }
 }
 
 #[cfg(test)]
