@@ -49,6 +49,21 @@ use std::{cell::RefCell, collections::HashMap, io, process};
 
 const NAME: &str = "index-preprocessor";
 
+/// Indentation to use for a nest-under entry, e.g.:
+///
+///   testing,
+///        fuzz testing
+///   ^^^^^
+const NEST_UNDER_INDENT: &str = "&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;";
+
+/// Indentation to use for use-chapter-names entries, e.g.:
+///
+///   testing
+///        Introduction,
+///        Tooling,
+///   ^^^^^
+const USE_NAMES_INDENT: &str = "&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;";
+
 pub fn make_app() -> App<'static, 'static> {
     App::new("index-preprocessor")
         .about("An mdbook preprocessor which collates an index")
@@ -97,6 +112,7 @@ lazy_static! {
 #[derive(Clone, Debug)]
 struct Location {
     pub path: Option<PathBuf>,
+    pub name: String,
     pub anchor: String,
 }
 
@@ -104,6 +120,7 @@ struct Location {
 pub struct Index {
     see_instead: HashMap<String, String>,
     nest_under: HashMap<String, String>,
+    use_chapter_names: bool,
     entries: RefCell<HashMap<String, Vec<Location>>>,
 }
 
@@ -150,14 +167,29 @@ impl Index {
                 }
             }
         }
+
+        let mut use_chapter_names = false;
+        if let Some(toml::Value::Boolean(val)) =
+            ctx.config.get("preprocessor.indexing.use_chapter_names")
+        {
+            use_chapter_names = *val;
+        }
+
         Self {
             see_instead,
             nest_under,
+            use_chapter_names,
             entries: RefCell::new(HashMap::new()),
         }
     }
 
-    fn process_chapter(&self, renderer: &str, path: &Option<PathBuf>, content: &str) -> String {
+    fn process_chapter(
+        &self,
+        renderer: &str,
+        path: &Option<PathBuf>,
+        name: &str,
+        content: &str,
+    ) -> String {
         let mut count = 1;
         let mut entries = self.entries.borrow_mut();
         INDEX_RE
@@ -212,6 +244,7 @@ impl Index {
                     let anchor = format!("a{:03}", count);
                     let location = Location {
                         path: path.clone(),
+                        name: name.to_owned(),
                         anchor: anchor.clone(),
                     };
                     count += 1;
@@ -279,19 +312,19 @@ impl Index {
             .collect();
 
         for entry in keys {
-            result = self.append_entry(result, &entry);
+            result = self.append_entry(result, "", &entry);
 
             if let Some(subs) = sub_entries.get(&entry) {
                 for sub in subs.into_iter() {
-                    result += "&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;";
-                    result = self.append_entry(result, sub);
+                    result = self.append_entry(result, NEST_UNDER_INDENT, sub);
                 }
             }
         }
         result
     }
 
-    fn append_entry(&self, mut result: String, entry: &str) -> String {
+    fn append_entry(&self, mut result: String, indent: &str, entry: &str) -> String {
+        result += indent;
         if let Some(alt) = self.see_instead.get(entry) {
             result += &format!("{}, see {}", entry, alt);
             // Check that the destination exists.
@@ -306,12 +339,24 @@ impl Index {
             let locations = self.entries.borrow().get(entry).unwrap().to_vec();
             result += &format!("{}", entry);
             for (idx, loc) in locations.into_iter().enumerate() {
-                result += ", ";
-                if let Some(path) = &loc.path {
-                    result +=
-                        &format!("[{}]({}#{})", idx + 1, path.as_path().display(), loc.anchor);
+                let (separator, entry_text) = if self.use_chapter_names {
+                    (
+                        format!(",<br/>\n{indent}{USE_NAMES_INDENT}"),
+                        format!("{}", loc.name),
+                    )
                 } else {
-                    result += &format!("{}", idx + 1);
+                    (", ".to_string(), format!("{}", idx + 1))
+                };
+                result += &separator;
+                if let Some(path) = &loc.path {
+                    result += &format!(
+                        "[{}]({}#{})",
+                        entry_text,
+                        path.as_path().display(),
+                        loc.anchor
+                    );
+                } else {
+                    result += &format!("{}", entry_text);
                 }
             }
         }
@@ -336,7 +381,8 @@ impl Preprocessor for Index {
                     chap.content = self.generate_index(&ctx.renderer);
                 } else {
                     log::info!("Indexing chapter '{}'", chap.name);
-                    chap.content = self.process_chapter(&ctx.renderer, &chap.path, &chap.content);
+                    chap.content =
+                        self.process_chapter(&ctx.renderer, &chap.path, &chap.name, &chap.content);
                 }
             }
         });
