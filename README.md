@@ -51,6 +51,11 @@ entries where the entry for the key should be nested under value.  Thus an entry
 
 would result in the index entry for "generic type" being only listed as an indented sub-entry under "generics".
 
+### Chapter Names
+
+The `use_chapter_names` boolean config option enables a mode where the generated index uses the names of chapters where
+index entries are located, rather than just numbers.
+
 ## Limitations
 
 - Avoid putting the index inside a link, as it breaks the link, i.e. prefer:
@@ -61,5 +66,3 @@ would result in the index entry for "generic type" being only listed as an inden
     ```md
     [{{i:text}}](http:link)
     ```
-- Index entries inside footnotes (from the [`mdbook-footnote`](https://crates.io/crates/mdbook-footnote) preprocessor)
-  do not work correctly.
