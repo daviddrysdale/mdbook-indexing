@@ -80,7 +80,7 @@ fn main() {
 
     if let Some(sub_args) = matches.subcommand_matches("supports") {
         let renderer = sub_args.value_of("renderer").expect("Required argument");
-        let supported = Index::supports_renderer(&renderer);
+        let supported = Index::supports_renderer(renderer);
 
         // Signal whether the renderer is supported by exiting with 1 or 0.
         if supported {
@@ -295,27 +295,24 @@ impl Index {
         // Remove any sub-entries from the list of keys, and track them separately
         // according to the main entry they will go underneath.
         let mut sub_entries = HashMap::<String, Vec<String>>::new();
-        keys = keys
-            .into_iter()
-            .filter(|s| {
-                if let Some(head) = self.nest_under.get(s) {
-                    // This is a sub-entry, so filter it out but also remember it in the per-main
-                    // entry list.  Because the keys are already sorted, the per-main entry list
-                    // will also be correctly sorted.
-                    let entries = sub_entries.entry(head.to_string()).or_default();
-                    entries.push(s.clone());
-                    false
-                } else {
-                    true
-                }
-            })
-            .collect();
+        keys.retain(|s| {
+            if let Some(head) = self.nest_under.get(s) {
+                // This is a sub-entry, so filter it out but also remember it in the per-main
+                // entry list.  Because the keys are already sorted, the per-main entry list
+                // will also be correctly sorted.
+                let entries = sub_entries.entry(head.to_string()).or_default();
+                entries.push(s.clone());
+                false
+            } else {
+                true
+            }
+        });
 
         for entry in keys {
             result = self.append_entry(result, "", &entry);
 
             if let Some(subs) = sub_entries.get(&entry) {
-                for sub in subs.into_iter() {
+                for sub in subs.iter() {
                     result = self.append_entry(result, NEST_UNDER_INDENT, sub);
                 }
             }
@@ -337,12 +334,12 @@ impl Index {
             }
         } else {
             let locations = self.entries.borrow().get(entry).unwrap().to_vec();
-            result += &format!("{}", entry);
+            result += entry;
             for (idx, loc) in locations.into_iter().enumerate() {
                 let (separator, entry_text) = if self.use_chapter_names {
                     (
                         format!(",<br/>\n{indent}{USE_NAMES_INDENT}"),
-                        format!("{}", loc.name),
+                        loc.name.to_string(),
                     )
                 } else {
                     (", ".to_string(), format!("{}", idx + 1))
@@ -356,7 +353,7 @@ impl Index {
                         loc.anchor
                     );
                 } else {
-                    result += &format!("{}", entry_text);
+                    result += &entry_text;
                 }
             }
         }
@@ -397,19 +394,19 @@ impl Preprocessor for Index {
 /// Convert index text into a form suitable for AsciiDoc.
 fn text_to_asciidoc(text: &str) -> String {
     // Remove surrounding MarkDown formatting characters and substitute for special characters.
-    text.replace("`", "")
+    text.replace('`', "")
         .trim_matches('*')
         .trim_matches('_')
-        .replace("<", "&lt;")
-        .replace(">", "&gt;")
-        .replace("&", "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('&', "&amp;")
 }
 
 /// Protect a string from AsciiDoc intepretation
 /// - Add quotes round a string if it contains commas.
 /// - Use a passthrough macro if it contains character replacement substitutions.
 fn asciidoc_protect(text: &mut String) {
-    if text.contains(",") {
+    if text.contains(',') {
         // An index entry with a comma needs double quotes around it so
         // the comma doesn't induce a nested entry.
         let quoted_text = format!("\"{text}\"");
