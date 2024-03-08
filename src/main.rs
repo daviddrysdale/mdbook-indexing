@@ -45,7 +45,11 @@ use mdbook::{
 };
 use regex::Regex;
 use std::path::PathBuf;
-use std::{cell::RefCell, collections::HashMap, io, process};
+use std::{
+    cell::RefCell,
+    collections::{HashMap, HashSet},
+    io, process,
+};
 
 const NAME: &str = "index-preprocessor";
 
@@ -118,6 +122,7 @@ struct Location {
 
 /// A pre-processor that tracks index entries.
 pub struct Index {
+    skip_renderer: HashSet<String>,
     see_instead: HashMap<String, String>,
     nest_under: HashMap<String, String>,
     use_chapter_names: bool,
@@ -145,6 +150,17 @@ impl Index {
                 ctx.mdbook_version
             );
         }
+
+        let skip_renderer = if let Some(toml::Value::String(val)) =
+            ctx.config.get("preprocessor.indexing.skip_renderer")
+        {
+            log::info!("Skipping output for renderers in: {val}");
+            val.split(',')
+                .map(|s| s.to_string())
+                .collect::<HashSet<String>>()
+        } else {
+            HashSet::new()
+        };
 
         let mut see_instead = HashMap::new();
         if let Some(toml::Value::Table(table)) = ctx.config.get("preprocessor.indexing.see_instead")
@@ -176,6 +192,7 @@ impl Index {
         }
 
         Self {
+            skip_renderer,
             see_instead,
             nest_under,
             use_chapter_names,
@@ -218,7 +235,17 @@ impl Index {
                     }
                 };
 
-                if renderer == "asciidoc" {
+                if self.skip_renderer.contains(renderer) {
+                    if visible {
+                        if italic {
+                            format!("*{content}*")
+                        } else {
+                            format!("{content}")
+                        }
+                    } else {
+                        "".to_string()
+                    }
+                } else if renderer == "asciidoc" {
                     let nest_under = self.nest_under.get(&index_entry);
                     let mut index_entry = text_to_asciidoc(&index_entry);
                     log::debug!("asciidoc entry '{index_entry}'");
@@ -268,7 +295,9 @@ impl Index {
     }
 
     pub fn generate_index(&self, renderer: &str) -> String {
-        if renderer == "asciidoc" {
+        if self.skip_renderer.contains(renderer) {
+            return "".to_string();
+        } else if renderer == "asciidoc" {
             // AsciiDoc takes care of generating the index catalog.
             return "[index]\n== Index\n".to_string();
         }
