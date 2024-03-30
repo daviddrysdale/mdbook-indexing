@@ -317,7 +317,7 @@ impl Index {
         keys.sort_by_key(|s| {
             s.to_lowercase()
                 .chars()
-                .filter(|c| !matches!(c, '*' | '{' | '}' | '`' | '[' | ']' | '@' | '\''))
+                .filter(|c| !matches!(c, '_' | '*' | '{' | '}' | '`' | '[' | ']' | '@' | '\''))
                 .collect::<String>()
         });
 
