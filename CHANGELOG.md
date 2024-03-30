@@ -1,5 +1,10 @@
 # Change Log
 
+## 0.1.3 - TBD
+
+- Add `skip_renderer` config option.
+- Fix ordering of entries in italics, when underscore is used to trigger italics.
+
 ## 0.1.2 - 2023-10-20
 
 - Add `{{ii:}}` for italicized, included text.

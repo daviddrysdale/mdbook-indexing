@@ -56,6 +56,11 @@ would result in the index entry for "generic type" being only listed as an inden
 The `use_chapter_names` boolean config option enables a mode where the generated index uses the names of chapters where
 index entries are located, rather than just numbers.
 
+### Skip Renderer
+
+The `skip_renderer` config option allows indexing output to be skipped for some renderers, specified as a
+comma-separated list.
+
 ## Limitations
 
 - Avoid putting the index inside a link, as it breaks the link, i.e. prefer:
