@@ -1,0 +1,69 @@
+name: CI
+permissions:
+  contents: read
+on:
+  pull_request:
+  push:
+    branches: main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        rust:
+          - stable
+          - beta
+    steps:
+      - uses: actions/checkout@8e5e7e5ab8b370d6c329ec480221332ada57f0ab # v3.5.2
+      - uses: dtolnay/rust-toolchain@a3ac054b2e7d62f514aa1bd57e3508c522fe772d # 1.68.2
+        with:
+          toolchain: ${{ matrix.rust }}
+          components: rustfmt
+      - run: cargo +${{ matrix.rust }} build --release --workspace
+
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        rust:
+          - stable
+          - beta
+    steps:
+      - uses: actions/checkout@8e5e7e5ab8b370d6c329ec480221332ada57f0ab # v3.5.2
+        with:
+          submodules: true
+      - uses: dtolnay/rust-toolchain@a3ac054b2e7d62f514aa1bd57e3508c522fe772d # 1.68.2
+        with:
+          toolchain: ${{ matrix.rust }}
+          components: rustfmt
+      - run: cargo +${{ matrix.rust }} test --workspace -- --nocapture
+
+  clippy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@8e5e7e5ab8b370d6c329ec480221332ada57f0ab # v3.5.2
+      - uses: dtolnay/rust-toolchain@a3ac054b2e7d62f514aa1bd57e3508c522fe772d # 1.68.2
+        with:
+          toolchain: stable
+          components: rustfmt, clippy
+      - run: cargo +stable clippy --all-features --all-targets -- -Dwarnings
+
+  doc:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@8e5e7e5ab8b370d6c329ec480221332ada57f0ab # v3.5.2
+      - uses: dtolnay/rust-toolchain@a3ac054b2e7d62f514aa1bd57e3508c522fe772d # 1.68.2
+        with:
+          toolchain: stable
+      - run: RUSTDOCFLAGS="-Dwarnings" cargo doc --no-deps --document-private-items
+
+  compare:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@8e5e7e5ab8b370d6c329ec480221332ada57f0ab # v3.5.2
+      - uses: dtolnay/rust-toolchain@a3ac054b2e7d62f514aa1bd57e3508c522fe772d # 1.68.2
+        with:
+          toolchain: stable
+      - run: cargo install mdbook
+      - run: make compare
