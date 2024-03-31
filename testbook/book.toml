@@ -1,0 +1,28 @@
+[book]
+title = "Test Book for mdbook-indexing"
+authors = ["David Drysdale"]
+description = "A collection of specific ways to improve your use of Rust"
+language = "en"
+
+[build]
+create-missing = false
+
+[preprocessor.indexing]
+
+[preprocessor.indexing.see_instead]
+"PAIR" = "protocol, PAIR"
+"PUSH" = "protocol, PUSH"
+"RiiR" = "Rewrite it in Rust"
+"unit test" = "test, unit"
+"integration test" = "test, integration"
+"fuzz test" = "test, fuzz"
+"doc test" = "test, doc"
+
+[preprocessor.indexing.nest_under]
+"protocol, PAIR" = "protocol"
+"protocol, PUSH" = "protocol"
+"test, unit" = "test"
+"test, integration" = "test"
+"test, flaky" = "test"
+"test, fuzz" = "test"
+"test, doc" = "test"
