@@ -240,7 +240,7 @@ impl Index {
                         if italic {
                             format!("*{content}*")
                         } else {
-                            format!("{content}")
+                            "{content}".to_string()
                         }
                     } else {
                         "".to_string()
