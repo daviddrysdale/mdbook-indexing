@@ -8,6 +8,7 @@ language = "en"
 create-missing = false
 
 [preprocessor.indexing]
+"suppress_head" = true
 
 [preprocessor.indexing.see_instead]
 "PAIR" = "protocol, PAIR"
