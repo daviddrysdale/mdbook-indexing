@@ -386,19 +386,6 @@ dependencies = [
 
 [[package]]
 name = "env_logger"
-version = "0.9.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a12e6657c4c97ebab115a42dcee77225f7f482cdd841cf7088c657a42e9e00e7"
-dependencies = [
- "atty",
- "humantime",
- "log",
- "regex",
- "termcolor",
-]
-
-[[package]]
-name = "env_logger"
 version = "0.11.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "38b35839ba51819680ba087cd351788c9a3c476841207e0b8cee0b04722343b9"
@@ -914,7 +901,7 @@ dependencies = [
  "clap 4.5.4",
  "clap_complete",
  "elasticlunr-rs",
- "env_logger 0.11.3",
+ "env_logger",
  "futures-util",
  "handlebars",
  "ignore",
@@ -942,7 +929,7 @@ name = "mdbook-indexing"
 version = "0.1.2"
 dependencies = [
  "clap 2.34.0",
- "env_logger 0.9.3",
+ "env_logger",
  "lazy_static",
  "log",
  "mdbook",
@@ -1588,15 +1575,6 @@ dependencies = [
  "futf",
  "mac",
  "utf-8",
-]
-
-[[package]]
-name = "termcolor"
-version = "1.4.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "06794f8f6c5c898b3275aebefa6b8a1cb24cd2c6c79397ab15774837a0bc5755"
-dependencies = [
- "winapi-util",
 ]
 
 [[package]]
