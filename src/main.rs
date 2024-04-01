@@ -126,6 +126,7 @@ pub struct Index {
     see_instead: HashMap<String, String>,
     nest_under: HashMap<String, String>,
     use_chapter_names: bool,
+    suppress_head: bool,
     entries: RefCell<HashMap<String, Vec<Location>>>,
 }
 
@@ -191,11 +192,19 @@ impl Index {
             use_chapter_names = *val;
         }
 
+        let mut suppress_head = false;
+        if let Some(toml::Value::Boolean(val)) =
+            ctx.config.get("preprocessor.indexing.suppress_head")
+        {
+            suppress_head = *val;
+        }
+
         Self {
             skip_renderer,
             see_instead,
             nest_under,
             use_chapter_names,
+            suppress_head,
             entries: RefCell::new(HashMap::new()),
         }
     }
@@ -338,21 +347,44 @@ impl Index {
         });
 
         for entry in keys {
-            result = self.append_entry(result, "", &entry);
+            result = self.append_entry(result, "", &entry, &entry);
 
             if let Some(subs) = sub_entries.get(&entry) {
                 for sub in subs.iter() {
-                    result = self.append_entry(result, NEST_UNDER_INDENT, sub);
+                    result = self.append_entry(
+                        result,
+                        NEST_UNDER_INDENT,
+                        sub,
+                        self.subentry(&entry, sub),
+                    );
                 }
             }
         }
         result
     }
 
-    fn append_entry(&self, mut result: String, indent: &str, entry: &str) -> String {
+    fn subentry<'a>(&self, entry: &'_ str, sub: &'a str) -> &'a str {
+        if self.suppress_head {
+            // See if the sub-entry starts with "{entry}, ".
+            if let Some(rest) = sub.strip_prefix(entry) {
+                if let Some(inner_sub) = rest.strip_prefix(", ") {
+                    return inner_sub;
+                }
+            }
+        }
+        sub
+    }
+
+    fn append_entry(
+        &self,
+        mut result: String,
+        indent: &str,
+        entry: &str,
+        entry_display: &str,
+    ) -> String {
         result += indent;
         if let Some(alt) = self.see_instead.get(entry) {
-            result += &format!("{}, see {}", entry, alt);
+            result += &format!("{}, see {}", entry_display, alt);
             // Check that the destination exists.
             if self.entries.borrow().get(alt).is_none() {
                 log::error!(
@@ -363,9 +395,9 @@ impl Index {
             }
         } else {
             let locations = self.entries.borrow().get(entry).unwrap().to_vec();
-            result += entry;
+            result += entry_display;
             for (idx, loc) in locations.into_iter().enumerate() {
-                let (separator, entry_text) = if self.use_chapter_names {
+                let (separator, anchor_text) = if self.use_chapter_names {
                     (
                         format!(",<br/>\n{indent}{USE_NAMES_INDENT}"),
                         loc.name.to_string(),
@@ -377,12 +409,12 @@ impl Index {
                 if let Some(path) = &loc.path {
                     result += &format!(
                         "[{}]({}#{})",
-                        entry_text,
+                        anchor_text,
                         path.as_path().display(),
                         loc.anchor
                     );
                 } else {
-                    result += &entry_text;
+                    result += &anchor_text;
                 }
             }
         }

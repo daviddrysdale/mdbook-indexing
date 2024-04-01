@@ -51,6 +51,23 @@ entries where the entry for the key should be nested under value.  Thus an entry
 
 would result in the index entry for "generic type" being only listed as an indented sub-entry under "generics".
 
+The `suppress_head` Boolean config option indicates whether sub-entries that start with the text of the main
+entry should have that prefix removed.  With this option un-set, a nested index might be:
+
+```text
+test, 1, 2, 3
+    test, fuzz, 1
+    test, unit, 1, 2
+```
+
+If the option is set, this would change to:
+
+```text
+test, 1, 2, 3
+    fuzz, 1
+    unit, 1, 2
+```
+
 ### Chapter Names
 
 The `use_chapter_names` boolean config option enables a mode where the generated index uses the names of chapters where

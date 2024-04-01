@@ -2,6 +2,7 @@
 
 ## 0.1.3 - TBD
 
+- Add `suppress_head` config option.
 - Add `skip_renderer` config option.
 - Fix ordering of entries in italics, when underscore is used to trigger italics.
 
