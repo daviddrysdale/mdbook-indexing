@@ -506,6 +506,8 @@ fn asciidoc_protect(text: &mut String) {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+
     #[test]
     fn test_canonicalize() {
         use super::canonicalize;
@@ -524,6 +526,49 @@ mod tests {
         for (input, want) in cases {
             let got = canonicalize(input);
             assert_eq!(got, want, "Mismatch for input: {}", input);
+        }
+    }
+
+    #[test]
+    fn test_matches() {
+        let tests = [
+            ("blah {{i:simple}} blah", VISIBLE, "simple"),
+            ("blah{{i:simple}}blah", VISIBLE, "simple"),
+            ("blah {{hi:simple}} blah", HIDDEN, "simple"),
+            ("blah {{ii:simple}} blah", ITALIC, "simple"),
+            (
+                "blah {{i:[link](http://example.com)}} blah",
+                VISIBLE,
+                "[link](http://example.com)",
+            ),
+            ("blah {{i:*italic*}} blah", VISIBLE, "*italic*"),
+            ("blah {{i:_italic_}} blah", VISIBLE, "_italic_"),
+            ("blah {{i:`code`}} blah", VISIBLE, "`code`"),
+            ("blah {{i:first}} blah {{hi:second}}", VISIBLE, "first"),
+            ("blah {{i:interior space}} blah", VISIBLE, "interior space"),
+            (
+                "blah {{i:interior\nnewline}} blah",
+                VISIBLE,
+                "interior\nnewline",
+            ),
+            (
+                "blah {{i:interior\tspace}} blah",
+                VISIBLE,
+                "interior\tspace",
+            ),
+            ("blah {{i: leading space}} blah", VISIBLE, "leading space"),
+            (
+                "blah {{i:trailing space }} blah",
+                VISIBLE,
+                "trailing space ",
+            ),
+        ];
+        for (input, want_viz, want_content) in tests {
+            let got = INDEX_RE.captures_iter(input).next().unwrap();
+            let got_viz = got.name("viz").unwrap().as_str();
+            assert_eq!(got_viz, want_viz, "for input '{input}'");
+            let got_content = got.name("content").unwrap().as_str();
+            assert_eq!(got_content, want_content, "for input '{input}'");
         }
     }
 }
