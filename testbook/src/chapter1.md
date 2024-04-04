@@ -20,5 +20,4 @@ Different sorts of {{i:test}}:
 - {{hi:test, fuzz}} fuzz test
 - {{hi: test, doc}} doc test
 
-To use the markup &lbrace;{ii:as is}}, put in an HTML entity reference instead of the markup (e.g. `&lbrace;` instead
-of `{`).
+To use the markup \{{ii:as is}}, put a {{i:backslash}} before the markup.

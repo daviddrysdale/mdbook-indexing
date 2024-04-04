@@ -109,12 +109,17 @@ const HIDDEN: &str = "hi";
 /// Command for a visible index entry, italicized.
 const ITALIC: &str = "ii";
 
+/// Escape character.
+const ESCAPE_CHAR: char = '\\';
+
 lazy_static! {
     /// Regular expression to match indexing commands.
     static ref INDEX_RE: Regex =
         Regex::new(
             r"(?x)             # insignificant whitespace mode
               (?s)             # dot matches newline
+              \\\{\{[^}]*\}\}  # match escaped link
+              |                # or
               \{\{             # opening braces
               (?P<viz>[hi]?i)  # visibility command (i, hi, ii)
               :                # separator
@@ -150,7 +155,7 @@ pub struct Index {
     see_instead: HashMap<String, String>,
     /// Index entries that should appear in the index as sub-entries underneath the specified top-level entry.
     nest_under: HashMap<String, String>,
-    /// Whether to skip a "<head>, " prefix in sub-entries where the prefix matches the top-level entry.
+    /// Whether to skip a "head, " prefix in sub-entries where the prefix matches the top-level entry.
     suppress_head: bool,
     /// Emit chapter names as the link text in the generated index.
     use_chapter_names: bool,
@@ -250,6 +255,11 @@ impl Index {
         let mut entries = self.entries.borrow_mut();
         INDEX_RE
             .replace_all(content, |caps: &regex::Captures| {
+                if let Some(mat) = caps.get(0) {
+                    if mat.as_str().starts_with(ESCAPE_CHAR) {
+                        return mat.as_str()[1..].to_owned();
+                    }
+                }
                 // Retrieve the content of the markup.  For a visible index entry, this is
                 // rendered in the output.
                 let viz = caps.name("viz").unwrap().as_str();
@@ -573,6 +583,7 @@ mod tests {
                 VISIBLE,
                 "trailing space ",
             ),
+            ("blah {{i:normal}} blah \\{{i:escaped}}", VISIBLE, "normal"),
         ];
         for (input, want_viz, want_content) in tests {
             let got = INDEX_RE.captures_iter(input).next().unwrap();
@@ -581,5 +592,44 @@ mod tests {
             let got_content = got.name("content").unwrap().as_str();
             assert_eq!(got_content, want_content, "for input '{input}'");
         }
+    }
+
+    #[test]
+    fn test_escaped_matches() {
+        let tests = [
+            "blah \\{{i:simple}} blah",
+            "blah\\{{i:simple}}blah",
+            "blah \\{{hi:simple}} blah",
+            "blah \\{{ii:simple}} blah",
+            "blah \\{{i:`code`}} blah",
+            "blah \\{{i:interior space}} blah",
+            "blah \\{{i:interior\nnewline}} blah",
+            "blah \\{{i: leading space}} blah",
+            "blah \\{{i:trailing space }} blah",
+        ];
+        for input in tests {
+            let got = INDEX_RE.captures_iter(input).next().unwrap();
+            assert!(
+                got.get(0).unwrap().as_str().starts_with(ESCAPE_CHAR),
+                "got {:?} for input '{}'",
+                got,
+                input
+            );
+            assert!(got.name("viz").is_none(), "for input '{}'", input);
+            assert!(got.name("content").is_none(), "for input '{}'", input);
+        }
+    }
+
+    #[test]
+    fn test_escaped_and_unescaped() {
+        let input = "blah \\{{i:escaped}} blah {{i:second}}";
+        let mut iter = INDEX_RE.captures_iter(input);
+        let got1 = iter.next().unwrap();
+        assert!(got1.get(0).unwrap().as_str().starts_with(ESCAPE_CHAR),);
+        let got2 = iter.next().unwrap();
+        let got2_viz = got2.name("viz").unwrap().as_str();
+        assert_eq!(got2_viz, VISIBLE);
+        let got2_content = got2.name("content").unwrap().as_str();
+        assert_eq!(got2_content, "second");
     }
 }
