@@ -112,7 +112,18 @@ const ITALIC: &str = "ii";
 lazy_static! {
     /// Regular expression to match indexing commands.
     static ref INDEX_RE: Regex =
-        Regex::new(r"(?s)\{\{(?P<viz>[hi]?i):\s*(?P<content>.*?)\}\}").unwrap();
+        Regex::new(
+            r"(?x)             # insignificant whitespace mode
+              (?s)             # dot matches newline
+              \{\{             # opening braces
+              (?P<viz>[hi]?i)  # visibility command (i, hi, ii)
+              :                # separator
+              \s*              # ignore leading whitespace
+              (?P<content>.*?) # index entry
+              \}\}             # closing braces"
+        ).unwrap();
+
+
     /// Regular expression to match a Markdown link.
     static ref MD_LINK_RE: Regex =
         Regex::new(r"(?s)\[(?P<text>[^]]+)\]\((?P<link>[^)]+)\)").unwrap();
