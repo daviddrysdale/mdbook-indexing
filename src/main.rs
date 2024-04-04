@@ -36,7 +36,7 @@
 //!     ```
 //!
 
-use clap::{App, Arg, SubCommand};
+use clap::{Arg, Command};
 use lazy_static::lazy_static;
 use mdbook::{
     book::Book,
@@ -68,22 +68,25 @@ const NEST_UNDER_INDENT: &str = "&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;";
 ///   ^^^^^
 const USE_NAMES_INDENT: &str = "&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;";
 
-pub fn make_app() -> App<'static, 'static> {
-    App::new("index-preprocessor")
+pub fn make_app() -> Command {
+    Command::new("index-preprocessor")
         .about("An mdbook preprocessor which collates an index")
         .subcommand(
-            SubCommand::with_name("supports")
-                .arg(Arg::with_name("renderer").required(true))
+            Command::new("supports")
+                .arg(Arg::new("renderer").required(true))
                 .about("Check whether a renderer is supported by this preprocessor"),
         )
 }
 
 fn main() {
     env_logger::init();
+
     let matches = make_app().get_matches();
 
     if let Some(sub_args) = matches.subcommand_matches("supports") {
-        let renderer = sub_args.value_of("renderer").expect("Required argument");
+        let renderer = sub_args
+            .get_one::<String>("renderer")
+            .expect("Required argument");
         let supported = Index::supports_renderer(renderer);
 
         // Signal whether the renderer is supported by exiting with 1 or 0.
