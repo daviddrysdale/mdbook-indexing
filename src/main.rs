@@ -102,31 +102,48 @@ fn main() {
     }
 }
 
+/// Command for a visible index entry.
 const VISIBLE: &str = "i";
+/// Command for a hidden index entry.
 const HIDDEN: &str = "hi";
+/// Command for a visible index entry, italicized.
 const ITALIC: &str = "ii";
+
 lazy_static! {
+    /// Regular expression to match indexing commands.
     static ref INDEX_RE: Regex =
         Regex::new(r"(?s)\{\{(?P<viz>[hi]?i):\s*(?P<content>.*?)\}\}").unwrap();
+    /// Regular expression to match a Markdown link.
     static ref MD_LINK_RE: Regex =
         Regex::new(r"(?s)\[(?P<text>[^]]+)\]\((?P<link>[^)]+)\)").unwrap();
+    /// Regular expression for whitespace.
     static ref WHITESPACE_RE: Regex = Regex::new(r"(?s)\s+").unwrap();
 }
 
+/// Location of an index anchor in the source book.
 #[derive(Clone, Debug)]
 struct Location {
+    /// File in source book.
     pub path: Option<PathBuf>,
+    /// Chapter name in source book.
     pub name: String,
+    /// Anchor identifier.
     pub anchor: String,
 }
 
 /// A pre-processor that tracks index entries.
 pub struct Index {
+    /// Renderers for which no indexing content should be emitted.
     skip_renderer: HashSet<String>,
+    /// Index entries that redirect to a different entry.
     see_instead: HashMap<String, String>,
+    /// Index entries that should appear in the index as sub-entries underneath the specified top-level entry.
     nest_under: HashMap<String, String>,
-    use_chapter_names: bool,
+    /// Whether to skip a "<head>, " prefix in sub-entries where the prefix matches the top-level entry.
     suppress_head: bool,
+    /// Emit chapter names as the link text in the generated index.
+    use_chapter_names: bool,
+    /// List of index anchor locations for each (canonicalized) index entry.
     entries: RefCell<HashMap<String, Vec<Location>>>,
 }
 
@@ -140,6 +157,7 @@ fn canonicalize(s: &str) -> String {
 }
 
 impl Index {
+    /// Create a new preprocessor, based on configuration in `ctx`.
     pub fn new(ctx: &PreprocessorContext) -> Self {
         if ctx.mdbook_version != mdbook::MDBOOK_VERSION {
             // We should probably use the `semver` crate to check compatibility here...
@@ -209,6 +227,7 @@ impl Index {
         }
     }
 
+    /// Process a chapter, emitting index anchors and accumulating the index information.
     fn process_chapter(
         &self,
         renderer: &str,
@@ -303,6 +322,7 @@ impl Index {
             .to_string()
     }
 
+    /// Generate the index page.
     pub fn generate_index(&self, renderer: &str) -> String {
         if self.skip_renderer.contains(renderer) {
             return "".to_string();
@@ -363,6 +383,7 @@ impl Index {
         result
     }
 
+    /// Generate the display form of a sub-entry.
     fn subentry<'a>(&self, entry: &'_ str, sub: &'a str) -> &'a str {
         if self.suppress_head {
             // See if the sub-entry starts with "{entry}, ".
@@ -375,6 +396,7 @@ impl Index {
         sub
     }
 
+    /// Append an entry to the generated index.
     fn append_entry(
         &self,
         mut result: String,
@@ -421,6 +443,8 @@ impl Index {
         result += "<br/>\n";
         result
     }
+
+    /// Indicate whether a renderer is supported.
     fn supports_renderer(renderer: &str) -> bool {
         renderer != "not-supported"
     }
