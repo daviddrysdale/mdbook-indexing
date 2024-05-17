@@ -273,7 +273,7 @@ impl Index {
                 log::debug!("found {viz} index entry '{content}' which maps to '{index_entry}'");
                 // Accumulate location against see_instead target if present
                 if let Some(dest) = self.see_instead.get(&index_entry) {
-                    index_entry = dest.clone();
+                    index_entry.clone_from(dest);
                     log::debug!("...or in fact '{index_entry}'");
                 }
 
