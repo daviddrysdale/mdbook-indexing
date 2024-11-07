@@ -12,5 +12,7 @@ install:
 # require an update to the expected index.
 compare: testbook/book/indexing.html
 	diff testbook/book/indexing.html testbook/expected_index.html
+regenerate: testbook/book/indexing.html
+	cp testbook/book/indexing.html testbook/expected_index.html
 testbook/book/indexing.html: install
 	(cd testbook && mdbook build)
