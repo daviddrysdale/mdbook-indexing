@@ -37,10 +37,10 @@
 //!
 
 use clap::{Arg, Command};
-use mdbook::{
-    book::Book,
+use mdbook_preprocessor::{
+    book::{Book, BookItem},
     errors::Error,
-    preprocess::{CmdPreprocessor, Preprocessor, PreprocessorContext},
+    Preprocessor, PreprocessorContext, MDBOOK_VERSION,
 };
 use regex::Regex;
 use std::{
@@ -52,7 +52,7 @@ use std::{
     sync::LazyLock,
 };
 
-const NAME: &str = "index-preprocessor";
+const NAME: &str = "indexing";
 
 /// Indentation to use for a nest-under entry, e.g.:
 ///
@@ -97,7 +97,8 @@ fn main() {
             process::exit(1);
         }
     } else {
-        let (ctx, book) = CmdPreprocessor::parse_input(io::stdin()).expect("Failed to parse input");
+        let (ctx, book) =
+            mdbook_preprocessor::parse_input(io::stdin()).expect("Failed to parse input");
         let preprocessor = Index::new(&ctx);
         let processed_book = preprocessor
             .run(&ctx, book)
@@ -178,18 +179,16 @@ fn canonicalize(s: &str) -> String {
 impl Index {
     /// Create a new preprocessor, based on configuration in `ctx`.
     pub fn new(ctx: &PreprocessorContext) -> Self {
-        if ctx.mdbook_version != mdbook::MDBOOK_VERSION {
+        if ctx.mdbook_version != MDBOOK_VERSION {
             // We should probably use the `semver` crate to check compatibility here...
             eprintln!(
-                "Warning: The {} plugin was built against version {} of mdbook, \
+                "Warning: The {NAME} plugin was built against version {MDBOOK_VERSION} of mdbook, \
                  but we're being called from version {}",
-                NAME,
-                mdbook::MDBOOK_VERSION,
                 ctx.mdbook_version
             );
         }
 
-        let skip_renderer = if let Some(toml::Value::String(val)) =
+        let skip_renderer = if let Ok(Some(toml::Value::String(val))) =
             ctx.config.get("preprocessor.indexing.skip_renderer")
         {
             log::info!("Skipping output for renderers in: {val}");
@@ -201,7 +200,8 @@ impl Index {
         };
 
         let mut see_instead = HashMap::new();
-        if let Some(toml::Value::Table(table)) = ctx.config.get("preprocessor.indexing.see_instead")
+        if let Ok(Some(toml::Value::Table(table))) =
+            ctx.config.get("preprocessor.indexing.see_instead")
         {
             for (key, val) in table {
                 if let toml::Value::String(value) = val {
@@ -212,7 +212,8 @@ impl Index {
         }
 
         let mut nest_under = HashMap::new();
-        if let Some(toml::Value::Table(table)) = ctx.config.get("preprocessor.indexing.nest_under")
+        if let Ok(Some(toml::Value::Table(table))) =
+            ctx.config.get("preprocessor.indexing.nest_under")
         {
             for (key, val) in table {
                 if let toml::Value::String(value) = val {
@@ -223,17 +224,17 @@ impl Index {
         }
 
         let mut use_chapter_names = false;
-        if let Some(toml::Value::Boolean(val)) =
+        if let Ok(Some(toml::Value::Boolean(val))) =
             ctx.config.get("preprocessor.indexing.use_chapter_names")
         {
-            use_chapter_names = *val;
+            use_chapter_names = val;
         }
 
         let mut suppress_head = false;
-        if let Some(toml::Value::Boolean(val)) =
+        if let Ok(Some(toml::Value::Boolean(val))) =
             ctx.config.get("preprocessor.indexing.suppress_head")
         {
-            suppress_head = *val;
+            suppress_head = val;
         }
 
         Self {
@@ -481,7 +482,7 @@ impl Preprocessor for Index {
 
     fn run(&self, ctx: &PreprocessorContext, mut book: Book) -> Result<Book, Error> {
         book.for_each_mut(|item| {
-            if let mdbook::book::BookItem::Chapter(chap) = item {
+            if let BookItem::Chapter(chap) = item {
                 if chap.name == "Index" {
                     log::debug!("Replacing chapter named '{}' with contents", chap.name);
                     chap.content = self.generate_index(&ctx.renderer);
@@ -495,8 +496,8 @@ impl Preprocessor for Index {
         Ok(book)
     }
 
-    fn supports_renderer(&self, renderer: &str) -> bool {
-        Self::supports_renderer(renderer)
+    fn supports_renderer(&self, renderer: &str) -> Result<bool, Error> {
+        Ok(Self::supports_renderer(renderer))
     }
 }
 
