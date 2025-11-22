@@ -37,18 +37,19 @@
 //!
 
 use clap::{Arg, Command};
-use lazy_static::lazy_static;
 use mdbook::{
     book::Book,
     errors::Error,
     preprocess::{CmdPreprocessor, Preprocessor, PreprocessorContext},
 };
 use regex::Regex;
-use std::path::PathBuf;
 use std::{
     cell::RefCell,
     collections::{HashMap, HashSet},
-    io, process,
+    io,
+    path::PathBuf,
+    process,
+    sync::LazyLock,
 };
 
 const NAME: &str = "index-preprocessor";
@@ -115,11 +116,10 @@ const ITALIC: &str = "ii";
 /// Escape character.
 const ESCAPE_CHAR: char = '\\';
 
-lazy_static! {
-    /// Regular expression to match indexing commands.
-    static ref INDEX_RE: Regex =
-        Regex::new(
-            r"(?x)             # insignificant whitespace mode
+/// Regular expression to match indexing commands.
+static INDEX_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(
+        r"(?x)             # insignificant whitespace mode
               (?s)             # dot matches newline
               \\\{\{[^}]*\}\}  # match escaped link
               |                # or
@@ -128,16 +128,16 @@ lazy_static! {
               :                # separator
               \s*              # ignore leading whitespace
               (?P<content>.*?) # index entry
-              \}\}             # closing braces"
-        ).unwrap();
+              \}\}             # closing braces",
+    )
+    .unwrap()
+});
 
-
-    /// Regular expression to match a Markdown link.
-    static ref MD_LINK_RE: Regex =
-        Regex::new(r"(?s)\[(?P<text>[^]]+)\]\((?P<link>[^)]+)\)").unwrap();
-    /// Regular expression for whitespace.
-    static ref WHITESPACE_RE: Regex = Regex::new(r"(?s)\s+").unwrap();
-}
+/// Regular expression to match a Markdown link.
+static MD_LINK_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?s)\[(?P<text>[^]]+)\]\((?P<link>[^)]+)\)").unwrap());
+/// Regular expression for whitespace.
+static WHITESPACE_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?s)\s+").unwrap());
 
 /// Location of an index anchor in the source book.
 #[derive(Clone, Debug)]
