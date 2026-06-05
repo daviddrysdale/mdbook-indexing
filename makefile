@@ -16,3 +16,5 @@ regenerate: testbook/book/indexing.html
 	cp testbook/book/indexing.html testbook/expected_index.html
 testbook/book/indexing.html: install
 	(cd testbook && mdbook build)
+clean:
+	cargo clean
